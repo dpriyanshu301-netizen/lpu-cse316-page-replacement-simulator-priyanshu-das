@@ -1,80 +1,109 @@
-from collections import deque, OrderedDict
+# algorithms.py
+# Efficient Page Replacement Algorithms
+# Author: Priyanshu Das — LPU CSE316
 
-def simulate_fifo(refs, frame_count):
-    frames = [-1] * frame_count
-    queue = deque()
+ def simulate_fifo(ref_string, frames):
     timeline = []
-    faults = 0
-    for ref in refs:
-        hit = ref in frames
-        evicted = None
-        if not hit:
-            faults += 1
-            if -1 in frames:
-                frames[frames.index(-1)] = ref
-                queue.append(ref)
-            else:
-                to_evict = queue.popleft()
-                evicted = to_evict
-                frames[frames.index(to_evict)] = ref
-                queue.append(ref)
-        timeline.append({'ref': ref, 'frames': frames.copy(), 'hit': hit, 'evicted': evicted})
-    hits = len(refs) - faults
-    return timeline, {'faults': faults, 'hits': hits, 'hit_ratio': hits/len(refs) if refs else 0}
+    frame_list = [-1] * frames
+    pointer = 0
+    faults = hits = 0
 
-def simulate_lru(refs, frame_count):
-    frames = []
-    recent = OrderedDict()
-    timeline = []
-    faults = 0
-    for ref in refs:
-        hit = ref in frames
-        evicted = None
-        if hit:
-            # move to end to mark as recently used
-            if ref in recent:
-                recent.move_to_end(ref)
+    for ref in ref_string:
+        if ref in frame_list:
+            hits += 1
+            hit = True
+            evicted = None
         else:
+            evicted = frame_list[pointer] if frame_list[pointer] != -1 else None
+            frame_list[pointer] = ref
+            pointer = (pointer + 1) % frames
             faults += 1
-            if len(frames) < frame_count:
-                frames.append(ref)
-            else:
-                # least recently used is first key in OrderedDict
-                if recent:
-                    lru = next(iter(recent))
-                    evicted = lru
-                    frames[frames.index(lru)] = ref
-                    recent.pop(lru, None)
-            recent[ref] = True
-        timeline.append({'ref': ref, 'frames': frames.copy(), 'hit': hit, 'evicted': evicted})
-    hits = len(refs) - faults
-    return timeline, {'faults': faults, 'hits': hits, 'hit_ratio': hits/len(refs) if refs else 0}
+            hit = False
 
-def simulate_optimal(refs, frame_count):
-    frames = []
+        timeline.append({
+            "ref": ref,
+            "frames": frame_list.copy(),
+            "hit": hit,
+            "evicted": evicted
+        })
+
+    return timeline, {"faults": faults, "hits": hits, "hit_ratio": (hits / len(ref_string)) if len(ref_string) else 0.0}
+
+
+def simulate_lru(ref_string, frames):
     timeline = []
-    faults = 0
-    n = len(refs)
-    for i, ref in enumerate(refs):
-        hit = ref in frames
-        evicted = None
-        if not hit:
+    frame_list = []
+    faults = hits = 0
+    recent = {}
+
+    for i, ref in enumerate(ref_string):
+        if ref in frame_list:
+            hits += 1
+            hit = True
+            evicted = None
+        else:
+            hit = False
             faults += 1
-            if len(frames) < frame_count:
-                frames.append(ref)
+            if len(frame_list) < frames:
+                frame_list.append(ref)
+                evicted = None
             else:
-                # compute next usage distance for each page in frames
-                next_use = {}
-                for p in frames:
-                    try:
-                        j = refs.index(p, i+1)
-                        next_use[p] = j
-                    except ValueError:
-                        next_use[p] = float('inf')
-                # evict the page with farthest next use
-                to_evict = max(next_use.items(), key=lambda x: x[1])[0]
-                evicted = to_evict
-                frames[frames.index(to_evict)] = ref
-        timeline.append({'ref': ref, 'frames': frames.copy(), 'hit': hit, 'evicted': evicted})
-    hits = len(refs) - faults
-    return timeline, {'faults': faults, 'hits': hits, 'hit_ratio': hits/len(refs) if refs else 0}
+                # find least recently used
+                lru_page = min(frame_list, key=lambda p: recent.get(p, -1))
+                idx = frame_list.index(lru_page)
+                evicted = frame_list[idx]
+                frame_list[idx] = ref
+
+        recent[ref] = i
+        # normalize frames for display
+        frames_snapshot = frame_list.copy() + [-1] * (frames - len(frame_list))
+        timeline.append({
+            "ref": ref,
+            "frames": frames_snapshot,
+            "hit": hit,
+            "evicted": evicted
+        })
+
+    return timeline, {"faults": faults, "hits": hits, "hit_ratio": (hits / len(ref_string)) if len(ref_string) else 0.0}
+
+
+def simulate_optimal(ref_string, frames):
+    timeline = []
+    frame_list = []
+    faults = hits = 0
+
+    for i, ref in enumerate(ref_string):
+        if ref in frame_list:
+            hits += 1
+            hit = True
+            evicted = None
+        else:
+            hit = False
+            faults += 1
+            if len(frame_list) < frames:
+                frame_list.append(ref)
+                evicted = None
+            else:
+                future = ref_string[i+1:]
+                index_map = {}
+                for f in frame_list:
+                    if f in future:
+                        index_map[f] = future.index(f)
+                    else:
+                        index_map[f] = float('inf')
+
+                to_replace = max(index_map, key=index_map.get)
+                idx = frame_list.index(to_replace)
+                evicted = frame_list[idx]
+                frame_list[idx] = ref
+
+        frames_snapshot = frame_list.copy() + [-1] * (frames - len(frame_list))
+        timeline.append({
+            "ref": ref,
+            "frames": frames_snapshot,
+            "hit": hit,
+            "evicted": evicted
+        })
+
+    return timeline, {"faults": faults, "hits": hits, "hit_ratio": (hits / len(ref_string)) if len(ref_string) else 0.0}
+
