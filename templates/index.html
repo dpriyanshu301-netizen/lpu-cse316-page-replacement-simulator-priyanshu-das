@@ -1,0 +1,113 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Page Replacement Simulator</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="page">
+    <h1>Page Replacement Simulator</h1>
+
+    <div class="controls">
+      <input id="refs" value="7 0 1 2 0 3 0 4 2 3 0 3 2">
+      <input id="frames" type="number" min="1" value="3">
+      <select id="algorithm">
+        <option>FIFO</option>
+        <option>LRU</option>
+        <option>Optimal</option>
+      </select>
+      <button id="run">Run</button>
+    </div>
+
+    <div id="result"></div>
+  </div>
+
+<script>
+// ------------------------------
+// makeTable() with FAULT colors
+// ------------------------------
+function makeTable(timeline, refs, faults) {
+  if (!timeline || timeline.length === 0) return "<p>No timeline</p>";
+
+  const frames = timeline[0].length;
+  let html = '<table class="timeline"><thead><tr><th>Frame \\ Time</th>';
+
+  // Header (mark fault columns)
+  for (let i = 0; i < timeline.length; i++) {
+    const faultAttr = faults[i] ? ' class="col-fault"' : '';
+    html += `<th${faultAttr}>T${i}<br>(${refs[i]})</th>`;
+  }
+  html += '</tr></thead><tbody>';
+
+  // Frames
+  for (let fr = frames - 1; fr >= 0; fr--) {
+    html += `<tr><th>F${fr}</th>`;
+    for (let i = 0; i < timeline.length; i++) {
+      const v = timeline[i][fr];
+      const cellClass = faults[i] ? ' class="cell-fault"' : '';
+      html += `<td${cellClass}>${v === -1 ? '' : v}</td>`;
+    }
+    html += '</tr>';
+  }
+
+  html += '</tbody></table>';
+  return html;
+}
+
+// ------------------------------
+// Handle RUN button
+// ------------------------------
+document.getElementById('run').onclick = async () => {
+  const refs = document.getElementById('refs').value;
+  const frames = parseInt(document.getElementById('frames').value, 10);
+  const algorithm = document.getElementById('algorithm').value;
+
+  const output = document.getElementById('result');
+  output.innerHTML = "Running...";
+
+  try {
+    const resp = await fetch('/simulate', {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refs, frames, algorithm })
+    });
+
+    const data = await resp.json();
+
+    if (!resp.ok) {
+      output.innerHTML = `<p class="error">${data.error}</p>`;
+      return;
+    }
+
+    const header =
+      `<h2>${data.algorithm} — Frames: ${data.frames} — Page Faults: ${data.total_faults}</h2>`;
+
+    const tableHtml = makeTable(data.timeline, data.refs, data.faults);
+
+    // Step log with FAULT coloring
+    let log = '<div class="log"><h3>Step log</h3><ol>';
+    for (let i = 0; i < data.refs.length; i++) {
+      const status = data.faults[i]
+        ? '<span class="log-fault">FAULT</span>'
+        : 'Hit';
+
+      log += `<li>T${i} ref=${data.refs[i]} — ${status} — frames: [${data.timeline[i].join(', ')}]</li>`;
+    }
+    log += '</ol></div>';
+
+    output.innerHTML = header + tableHtml + log;
+
+  } catch (err) {
+    output.innerHTML = `<p class="error">Request failed: ${err.message}</p>`;
+  }
+};
+
+// Run once on page load
+window.onload = () => {
+  document.getElementById('run').click();
+};
+</script>
+
+</body>
+</html>
