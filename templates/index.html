@@ -25,7 +25,7 @@
 
 <script>
 // ------------------------------
-// makeTable() with FAULT colors
+// makeTable() with FAULT color
 // ------------------------------
 function makeTable(timeline, refs, faults) {
   if (!timeline || timeline.length === 0) return "<p>No timeline</p>";
@@ -40,7 +40,7 @@ function makeTable(timeline, refs, faults) {
   }
   html += '</tr></thead><tbody>';
 
-  // Frames
+  // Frame
   for (let fr = frames - 1; fr >= 0; fr--) {
     html += `<tr><th>F${fr}</th>`;
     for (let i = 0; i < timeline.length; i++) {
